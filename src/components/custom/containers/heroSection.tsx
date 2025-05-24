@@ -1,7 +1,7 @@
 import React from "react";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import Logo from "./logo";
+import Logo from "@/components/custom/logo";
 
 const HeroSection = () => {
   return (

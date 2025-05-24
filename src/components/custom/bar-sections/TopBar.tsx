@@ -1,0 +1,126 @@
+"use client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Grid3X3,
+  List,
+  MoreVertical,
+  Search,
+  Settings,
+  User,
+  ChevronRight,
+} from "lucide-react";
+import { SidebarTrigger } from "@/components/custom/bar-sections/SideBar";
+
+interface TopBarProps {
+  viewMode?: "grid" | "list";
+  onViewModeChange?: (mode: "grid" | "list") => void;
+  currentFolder: string;
+  onSidebarToggle?: () => void;
+  needsToToggle: boolean;
+}
+
+export function TopBar({
+  viewMode,
+  onViewModeChange,
+  currentFolder,
+  onSidebarToggle,
+  needsToToggle,
+}: TopBarProps) {
+  return (
+    <div className="border-b bg-background p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2 min-w-0">
+          {onSidebarToggle && <SidebarTrigger onClick={onSidebarToggle} />}
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-xl font-semibold hidden sm:block">Drive</h1>
+            <ChevronRight className="w-4 h-4 text-muted-foreground hidden sm:block" />
+            <span className="text-muted-foreground truncate">
+              {currentFolder}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-4">
+          {needsToToggle && (
+            <>
+              <div className="relative hidden sm:block">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search in Drive"
+                  className="pl-10 w-60 lg:w-80"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => onViewModeChange && onViewModeChange("grid")}
+                  className="hidden sm:flex"
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => onViewModeChange && onViewModeChange("list")}
+                  className="hidden sm:flex"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
+            </>
+          )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="sm:hidden">
+                <Search className="w-4 h-4 mr-2" />
+                Search
+              </DropdownMenuItem>
+              {needsToToggle && (
+                <DropdownMenuItem
+                  className="sm:hidden"
+                  onClick={() =>
+                    onViewModeChange &&
+                    onViewModeChange(viewMode === "grid" ? "list" : "grid")
+                  }
+                >
+                  {viewMode === "grid" ? (
+                    <List className="w-4 h-4 mr-2" />
+                  ) : (
+                    <Grid3X3 className="w-4 h-4 mr-2" />
+                  )}
+                  {viewMode === "grid" ? "List view" : "Grid view"}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem>
+                <a href="/settings" className="flex items-center w-full">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <a href="/account" className="flex items-center w-full">
+                  <User className="w-4 h-4 mr-2" />
+                  Account
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </div>
+  );
+}
