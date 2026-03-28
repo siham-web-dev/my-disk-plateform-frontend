@@ -1,4 +1,6 @@
 "use client";
+
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,31 +20,151 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Bell,
-  Download,
   HardDrive,
-  Monitor,
   Palette,
   Shield,
   Trash2,
-  Upload,
-  Users,
+  Loader2,
 } from "lucide-react";
-import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { getUserSettings, updateUserSettings, emptyTrash, deleteUserAccount } from "@/actions/settings";
+import { getPricingPlans, getSubscriptionStatus } from "@/actions/plans";
+import { UpgradePlansList, UpgradePlanProps } from "@/components/custom/containers/UpgradePlansList";
+import { getUserProfile, syncUser } from "@/actions/user";
+import { toast } from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 const SettingsView = () => {
-  const [notifications, setNotifications] = useState({
-    email: true,
-    desktop: false,
-    mobile: true,
-    sharing: true,
-  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [settings, setSettings] = useState<any>(null);
+  const [storage, setStorage] = useState<any>({ storageUsed: 0, storageLimit: 5368709120 });
+  const [user, setUser] = useState<any>(null);
+  const [availablePlans, setAvailablePlans] = useState<UpgradePlanProps[]>([]);
+  const [currentPlanName, setCurrentPlanName] = useState("Free");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<{
+    status: string;
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: Date | null;
+  }>({ status: "none", cancelAtPeriodEnd: false, currentPeriodEnd: null });
+  const router = useRouter();
 
-  const [privacy, setPrivacy] = useState({
-    publicProfile: false,
-    activityStatus: true,
-    dataCollection: false,
-  });
+  const init = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setUser(user);
+      const data = await getUserSettings(user.id);
+      if (data) {
+        setSettings(data.settings);
+        setStorage(data.storage);
+      }
+
+      const dbUser = await getUserProfile(user.id);
+      setCurrentPlanName(dbUser?.plan?.name || "Free");
+
+      const subStatus = await getSubscriptionStatus(user.id);
+      setSubscriptionStatus(subStatus);
+
+      const dataPlans = await getPricingPlans();
+      setAvailablePlans(
+        dataPlans.map((plan) => ({
+          id: plan.id,
+          name: plan.name,
+          description: plan.description,
+          price: plan.price,
+          canShare: plan.canShare,
+          numPeopleToShare: plan.numPeopleToShare,
+          hasSecurity: plan.hasSecurity,
+          storageLimit: plan.storageLimit.toString(),
+          stripeMonthlyPriceId: plan.stripeMonthlyPriceId,
+          stripeYearlyPriceId: plan.stripeYearlyPriceId,
+        }))
+      );
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    init();
+  }, []);
+
+  const handleUpdate = async (key: string, value: any) => {
+    if (!user) return;
+
+    // Optimistic update
+    const previousSettings = { ...settings };
+    setSettings((prev: any) => ({ ...prev, [key]: value }));
+    setSaving(key);
+
+    const result = await updateUserSettings(user.id, { [key]: value });
+
+    if (!result.success) {
+      setSettings(previousSettings);
+      toast.error(`Failed to update ${key}`);
+    } else {
+      toast.success("Settings updated");
+    }
+    setSaving(null);
+  };
+
+  const handleEmptyTrash = async () => {
+    if (!user) return;
+    const confirm = window.confirm("Are you sure you want to permanently delete all files in trash?");
+    if (!confirm) return;
+
+    const result = await emptyTrash(user.id);
+    if (result.success) {
+      toast.success(`Emptied trash: ${result.count} files deleted.`);
+      // Update local storage stats
+      setStorage((prev: any) => ({
+        ...prev,
+        storageUsed: prev.storageUsed - (result.sizeReleased || 0)
+      }));
+    } else {
+      toast.error("Failed to empty trash");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const confirm = window.confirm("DANGER: This will permanently delete your account and all files. This action cannot be undone.");
+    if (!confirm) return;
+
+    const result = await deleteUserAccount(user.id);
+    if (result.success) {
+      await supabase.auth.signOut();
+      router.push("/sign-in");
+      toast.success("Account deleted successfully.");
+    } else {
+      toast.error("Failed to delete account");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const storagePercent = Math.min(100, Math.round((Number(storage.storageUsed) / Number(storage.storageLimit)) * 100));
 
   return (
     <main className="flex-1 overflow-auto p-3 sm:p-6">
@@ -67,18 +189,6 @@ const SettingsView = () => {
             >
               Notifications
             </TabsTrigger>
-            <TabsTrigger
-              value="privacy"
-              className="text-xs sm:text-sm hidden sm:block"
-            >
-              Privacy
-            </TabsTrigger>
-            <TabsTrigger
-              value="advanced"
-              className="text-xs sm:text-sm hidden sm:block"
-            >
-              Advanced
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-4 sm:space-y-6">
@@ -97,14 +207,17 @@ const SettingsView = () => {
                   <Label htmlFor="theme" className="text-sm">
                     Theme
                   </Label>
-                  <Select defaultValue="system">
-                    <SelectTrigger>
+                  <Select
+                    value={settings.theme}
+                    onValueChange={(v) => handleUpdate("theme", v)}
+                  >
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select theme" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
+                      <SelectItem value="LIGHT">Light</SelectItem>
+                      <SelectItem value="DARK">Dark</SelectItem>
+                      <SelectItem value="SYSTEM">System</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -112,15 +225,17 @@ const SettingsView = () => {
                   <Label htmlFor="language" className="text-sm">
                     Language
                   </Label>
-                  <Select defaultValue="en">
-                    <SelectTrigger>
+                  <Select
+                    value={settings.language}
+                    onValueChange={(v) => handleUpdate("language", v)}
+                  >
+                    <SelectTrigger className="w-full" >
                       <SelectValue placeholder="Select language" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Español</SelectItem>
                       <SelectItem value="fr">Français</SelectItem>
-                      <SelectItem value="de">Deutsch</SelectItem>
+                      <SelectItem value="ar">Arabic</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -128,51 +243,20 @@ const SettingsView = () => {
                   <Label htmlFor="timezone" className="text-sm">
                     Timezone
                   </Label>
-                  <Select defaultValue="utc">
-                    <SelectTrigger>
+                  <Select
+                    value={settings.timezone}
+                    onValueChange={(v) => handleUpdate("timezone", v)}
+                  >
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="utc">UTC</SelectItem>
-                      <SelectItem value="est">Eastern Time</SelectItem>
-                      <SelectItem value="pst">Pacific Time</SelectItem>
-                      <SelectItem value="cet">Central European Time</SelectItem>
+                      <SelectItem value="UTC">UTC</SelectItem>
+                      <SelectItem value="EST">Eastern Time</SelectItem>
+                      <SelectItem value="PST">Pacific Time</SelectItem>
+                      <SelectItem value="CET">Central European Time</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <Monitor className="w-4 h-4 sm:w-5 sm:h-5" />
-                  Default View
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  Set your preferred file view mode
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="defaultView" className="text-sm">
-                    Default file view
-                  </Label>
-                  <Select defaultValue="grid">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select view" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="grid">Grid view</SelectItem>
-                      <SelectItem value="list">List view</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch id="autoPreview" />
-                  <Label htmlFor="autoPreview" className="text-sm">
-                    Auto-preview files on hover
-                  </Label>
                 </div>
               </CardContent>
             </Card>
@@ -193,46 +277,33 @@ const SettingsView = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Used storage</span>
-                    <span>15 GB of 100 GB</span>
+                    <span>{formatSize(Number(storage.storageUsed))} of {formatSize(Number(storage.storageLimit))}</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-3">
                     <div
-                      className="bg-blue-500 h-3 rounded-full"
-                      style={{ width: "15%" }}
+                      className="bg-primary h-3 rounded-full transition-all duration-500"
+                      style={{ width: `${storagePercent}%` }}
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 pt-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full" />
-                      <span className="text-sm">Documents</span>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full mt-4">Upgrade Storage</Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-full sm:max-w-4xl md:max-w-5xl lg:max-w-6xl w-full p-0 overflow-hidden bg-transparent border-none shadow-none">
+                    <DialogHeader className="sr-only">
+                      <DialogTitle>Choose Your Plan</DialogTitle>
+                    </DialogHeader>
+                    <div className="w-full max-h-[85vh] overflow-y-auto rounded-xl shadow-2xl bg-white">
+                      <UpgradePlansList
+                        plans={availablePlans}
+                        currentPlanName={currentPlanName}
+                        hasActiveSubscription={subscriptionStatus.status === "active" && !subscriptionStatus.cancelAtPeriodEnd}
+                        subscriptionEndDate={subscriptionStatus.currentPeriodEnd}
+                      />
                     </div>
-                    <p className="text-sm text-muted-foreground">8.2 GB</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full" />
-                      <span className="text-sm">Images</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">4.1 GB</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                      <span className="text-sm">Videos</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">2.3 GB</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full" />
-                      <span className="text-sm">Other</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">0.4 GB</p>
-                  </div>
-                </div>
-                <Button className="w-full mt-4">Upgrade Storage</Button>
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
 
@@ -247,16 +318,16 @@ const SettingsView = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button variant="outline" className="w-full justify-start">
+                <Button variant="outline" className="w-full justify-start" onClick={handleEmptyTrash}>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Empty Trash (2.1 GB)
+                  Empty Trash
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download All Files
-                </Button>
-                <div className="flex items-center space-x-2">
-                  <Switch id="autoDelete" />
+                <div className="flex items-center space-x-2 pt-2">
+                  <Switch
+                    id="autoDelete"
+                    checked={settings.autoDelete}
+                    onCheckedChange={(c) => handleUpdate("autoDelete", c)}
+                  />
                   <Label htmlFor="autoDelete" className="text-sm">
                     Auto-delete files in trash after 30 days
                   </Label>
@@ -288,10 +359,8 @@ const SettingsView = () => {
                   </div>
                   <Switch
                     id="email-notifications"
-                    checked={notifications.email}
-                    onCheckedChange={(checked) =>
-                      setNotifications((prev) => ({ ...prev, email: checked }))
-                    }
+                    checked={settings.emailNotifications}
+                    onCheckedChange={(c) => handleUpdate("emailNotifications", c)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -305,30 +374,8 @@ const SettingsView = () => {
                   </div>
                   <Switch
                     id="desktop-notifications"
-                    checked={notifications.desktop}
-                    onCheckedChange={(checked) =>
-                      setNotifications((prev) => ({
-                        ...prev,
-                        desktop: checked,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="mobile-notifications" className="text-sm">
-                      Mobile notifications
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Receive push notifications on mobile
-                    </p>
-                  </div>
-                  <Switch
-                    id="mobile-notifications"
-                    checked={notifications.mobile}
-                    onCheckedChange={(checked) =>
-                      setNotifications((prev) => ({ ...prev, mobile: checked }))
-                    }
+                    checked={settings.desktopNotifications}
+                    onCheckedChange={(c) => handleUpdate("desktopNotifications", c)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -342,18 +389,15 @@ const SettingsView = () => {
                   </div>
                   <Switch
                     id="sharing-notifications"
-                    checked={notifications.sharing}
-                    onCheckedChange={(checked) =>
-                      setNotifications((prev) => ({
-                        ...prev,
-                        sharing: checked,
-                      }))
-                    }
+                    checked={settings.sharingNotifications}
+                    onCheckedChange={(c) => handleUpdate("sharingNotifications", c)}
                   />
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Additional Settings Tabs like Privacy, Advanced could be added here following same pattern */}
 
           <TabsContent value="privacy" className="space-y-4 sm:space-y-6">
             <Card>
@@ -363,165 +407,14 @@ const SettingsView = () => {
                   Privacy Settings
                 </CardTitle>
                 <CardDescription className="text-sm">
-                  Control your privacy and data sharing preferences
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="public-profile" className="text-sm">
-                      Public profile
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Make your profile visible to others
-                    </p>
-                  </div>
-                  <Switch
-                    id="public-profile"
-                    checked={privacy.publicProfile}
-                    onCheckedChange={(checked) =>
-                      setPrivacy((prev) => ({
-                        ...prev,
-                        publicProfile: checked,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="activity-status" className="text-sm">
-                      Activity status
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Show when {"you're"} online
-                    </p>
-                  </div>
-                  <Switch
-                    id="activity-status"
-                    checked={privacy.activityStatus}
-                    onCheckedChange={(checked) =>
-                      setPrivacy((prev) => ({
-                        ...prev,
-                        activityStatus: checked,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="data-collection" className="text-sm">
-                      Data collection
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Allow analytics and usage data collection
-                    </p>
-                  </div>
-                  <Switch
-                    id="data-collection"
-                    checked={privacy.dataCollection}
-                    onCheckedChange={(checked) =>
-                      setPrivacy((prev) => ({
-                        ...prev,
-                        dataCollection: checked,
-                      }))
-                    }
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-                  Sharing Defaults
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  Set default permissions for shared files
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="defaultPermission" className="text-sm">
-                    Default sharing permission
-                  </Label>
-                  <Select defaultValue="view">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select permission" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="view">View only</SelectItem>
-                      <SelectItem value="comment">Can comment</SelectItem>
-                      <SelectItem value="edit">Can edit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch id="requireAuth" defaultChecked />
-                  <Label htmlFor="requireAuth" className="text-sm">
-                    Require authentication for shared links
-                  </Label>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="advanced" className="space-y-4 sm:space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
-                  Upload Settings
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  Configure file upload behavior
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="uploadQuality" className="text-sm">
-                    Image upload quality
-                  </Label>
-                  <Select defaultValue="original">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select quality" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="original">Original</SelectItem>
-                      <SelectItem value="high">High quality</SelectItem>
-                      <SelectItem value="medium">Medium quality</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch id="autoSync" defaultChecked />
-                  <Label htmlFor="autoSync" className="text-sm">
-                    Auto-sync files
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch id="offlineAccess" />
-                  <Label htmlFor="offlineAccess" className="text-sm">
-                    Enable offline access
-                  </Label>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg sm:text-xl">
-                  Danger Zone
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  Irreversible and destructive actions
+                  Danger zone and irreversible actions
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Button variant="outline" className="w-full">
                   Export All Data
                 </Button>
-                <Button variant="destructive" className="w-full">
+                <Button variant="destructive" className="w-full" onClick={handleDeleteAccount}>
                   Delete Account
                 </Button>
               </CardContent>

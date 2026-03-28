@@ -15,8 +15,12 @@ import {
   Settings,
   User,
   ChevronRight,
+  LogOut,
 } from "lucide-react";
 import { SidebarTrigger } from "@/components/custom/bar-sections/SideBar";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface TopBarProps {
   viewMode?: "grid" | "list";
@@ -33,6 +37,14 @@ export function TopBar({
   onSidebarToggle,
   needsToToggle,
 }: TopBarProps) {
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+    router.push("/");
+  };
+
   return (
     <div className="border-b bg-background p-4">
       <div className="flex items-center justify-between gap-4">
@@ -105,17 +117,21 @@ export function TopBar({
                   {viewMode === "grid" ? "List view" : "Grid view"}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem>
-                <a href="/settings" className="flex items-center w-full">
+              <DropdownMenuItem asChild>
+                <Link href="/settings" className="flex items-center w-full">
                   <Settings className="w-4 h-4 mr-2" />
                   Settings
-                </a>
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <a href="/account" className="flex items-center w-full">
+              <DropdownMenuItem asChild>
+                <Link href="/account" className="flex items-center w-full">
                   <User className="w-4 h-4 mr-2" />
                   Account
-                </a>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive cursor-pointer">
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

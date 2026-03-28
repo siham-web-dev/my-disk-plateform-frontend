@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Permission {
+  VIEW
+  COMMENT
+  EDIT
+  DELETE
+}
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String?
+  image        String?
+  storageUsed  BigInt  @default(0)
+  storageLimit BigInt  @default(5368709120) // 5GB default
+
+  // Relations
+  folders     Folder[]
+  files       File[]
+  sharedItems SharedItem[] @relation("SharedWith")
+  activities  Activity[]
+  sessions    Session[]
+  settings    Settings?
+
+  // Plan
+  planId String?
+  plan   Plan?   @relation(fields: [planId], references: [id])
+
+  // Stripe Billing
+  stripeCustomerId       String?   @unique
+  stripeSubscriptionId   String?   @unique
+  stripePriceId          String?
+  stripeCurrentPeriodEnd DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Plan {
+  id               String  @id @default(cuid())
+  name             String  @unique // e.g. "FREE", "PRO", "BUSINESS"
+  description      String?
+  price            Float
+  storageLimit     BigInt // in bytes
+  canShare         Boolean
+  numPeopleToShare Int
+  hasSecurity      Boolean
+  users            User[]
+
+  // Stripe Mapping
+  stripeMonthlyPriceId String?
+  stripeYearlyPriceId  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Folder {
+  id        String  @id @default(cuid())
+  name      String
+  isStarred Boolean @default(false)
+  isTrashed Boolean @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  parentId String?
+  parent   Folder?  @relation("SubFolders", fields: [parentId], references: [id])
+  children Folder[] @relation("SubFolders")
+
+  files      File[]
+  sharedWith SharedItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model File {
+  id        String  @id @default(cuid())
+  name      String
+  type      String
+  size      BigInt
+  url       String
+  isStarred Boolean @default(false)
+  isTrashed Boolean @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  sharedWith SharedItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([folderId])
+}
+
+model SharedItem {
+  id         String     @id @default(cuid())
+  permission Permission @default(VIEW)
+
+  // The item being shared
+  fileId String?
+  file   File?   @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  // Recipient
+  sharedWithId String
+  sharedWith   User   @relation("SharedWith", fields: [sharedWithId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fileId])
+  @@index([folderId])
+  @@index([sharedWithId])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String // e.g. "UPLOAD", "DELETE", "SHARE", "DOWNLOAD"
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  userAgent    String?
+  ipAddress    String?
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Settings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Appearance
+  theme    String @default("SYSTEM") // LIGHT, DARK, SYSTEM
+  language String @default("en")
+  timezone String @default("UTC")
+
+  // Storage Management
+  autoDelete Boolean @default(false)
+
+  // Notification Preferences
+  emailNotifications   Boolean @default(true)
+  desktopNotifications Boolean @default(false)
+  sharingNotifications Boolean @default(true)
+
+  // Privacy Settings
+  publicProfile  Boolean @default(false)
+  activityStatus Boolean @default(true)
+  dataCollection Boolean @default(false)
+
+  // Sharing Defaults
+  defaultPermission Permission @default(VIEW)
+  requireAuth       Boolean    @default(true)
+
+  // Advanced / Upload Settings
+  uploadQuality String  @default("ORIGINAL") // ORIGINAL, HIGH, MEDIUM
+  autoSync      Boolean @default(true)
+  offlineAccess Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
