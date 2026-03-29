@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -32,117 +32,57 @@ import {
   ArrowUpDown,
   AlertTriangle,
   Calendar,
+  Loader2,
+  X,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { getFilesByCategory, toggleFileTrash, deleteFilePermanently } from "@/actions/files";
+import toast from "react-hot-toast";
+import { formatDistanceToNow, addDays, differenceInDays } from "date-fns";
 
-const trashedFiles = [
-  {
-    id: 1,
-    name: "Old Project.docx",
-    type: "document",
-    size: "2.4 MB",
-    deletedDate: "2023-12-10",
-    deletedBy: "You",
-    originalLocation: "My Drive/Projects",
-    daysLeft: 25,
-  },
-  {
-    id: 2,
-    name: "Unused Images",
-    type: "folder",
-    size: "45.2 MB",
-    deletedDate: "2023-12-08",
-    deletedBy: "You",
-    originalLocation: "My Drive/Media",
-    daysLeft: 23,
-  },
-  {
-    id: 3,
-    name: "draft-presentation.pptx",
-    type: "document",
-    size: "8.1 MB",
-    deletedDate: "2023-12-05",
-    deletedBy: "John Doe",
-    originalLocation: "Shared/Team Presentations",
-    daysLeft: 20,
-  },
-  {
-    id: 4,
-    name: "vacation-2022.jpg",
-    type: "image",
-    size: "3.2 MB",
-    deletedDate: "2023-11-28",
-    deletedBy: "You",
-    originalLocation: "My Drive/Photos/2022",
-    daysLeft: 13,
-  },
-  {
-    id: 5,
-    name: "old-backup.zip",
-    type: "archive",
-    size: "128 MB",
-    deletedDate: "2023-11-20",
-    deletedBy: "You",
-    originalLocation: "My Drive/Backups",
-    daysLeft: 5,
-  },
-  {
-    id: 6,
-    name: "meeting-recording.mp4",
-    type: "video",
-    size: "245 MB",
-    deletedDate: "2023-11-15",
-    deletedBy: "Jane Smith",
-    originalLocation: "Shared/Meetings",
-    daysLeft: 1,
-  },
-];
-
-function getFileIcon(type: string) {
-  switch (type) {
-    case "folder":
-      return FolderOpen;
-    case "image":
-      return ImageIcon;
-    case "video":
-      return Video;
-    case "audio":
-      return Music;
-    case "archive":
-      return Archive;
-    default:
-      return FileText;
-  }
+function getFileIcon(type: string, isFolder: boolean) {
+  if (isFolder) return FolderOpen;
+  const lowerType = type.toLowerCase();
+  if (lowerType.includes("image")) return ImageIcon;
+  if (lowerType.includes("video")) return Video;
+  if (lowerType.includes("audio")) return Music;
+  if (lowerType.includes("zip") || lowerType.includes("rar")) return Archive;
+  return FileText;
 }
 
-function getDaysLeftBadge(daysLeft: number) {
-  if (daysLeft <= 1) {
-    return (
-      <Badge variant="destructive" className="text-xs">
-        Expires today
-      </Badge>
-    );
-  } else if (daysLeft <= 7) {
-    return (
-      <Badge
-        variant="secondary"
-        className="text-xs bg-orange-100 text-orange-800"
-      >
-        {daysLeft} days left
-      </Badge>
-    );
-  } else {
-    return (
-      <Badge variant="secondary" className="text-xs">
-        {daysLeft} days left
-      </Badge>
-    );
-  }
-}
+const formatSize = (sizeStr: string) => {
+  const bytes = parseInt(sizeStr);
+  if (isNaN(bytes) || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
 
 export function TrashView() {
-  const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
+  const [files, setFiles] = useState<any[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const toggleFileSelection = (fileId: number) => {
+  const fetchFiles = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const data = await getFilesByCategory(user.id, "Trash");
+      setFiles(data);
+    } catch (error) {
+      toast.error("Failed to load trash");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
+
+  const toggleFileSelection = (fileId: string) => {
     setSelectedFiles((prev) =>
       prev.includes(fileId)
         ? prev.filter((id) => id !== fileId)
@@ -152,31 +92,95 @@ export function TrashView() {
 
   const toggleAllFiles = () => {
     setSelectedFiles((prev) =>
-      prev.length === trashedFiles.length ? [] : trashedFiles.map((f) => f.id)
+      prev.length === files.length ? [] : files.map((f) => f.id)
     );
   };
 
-  const restoreSelected = () => {
-    console.log("Restoring files:", selectedFiles);
-    setSelectedFiles([]);
+  const handleRestore = async (id: string, isFolder: boolean) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const result = await toggleFileTrash(user.id, id, false, isFolder);
+      if (result.success) {
+        toast.success("Item restored");
+        fetchFiles();
+        setSelectedFiles(prev => prev.filter(p => p !== id));
+      } else {
+        toast.error(result.error || "Failed to restore item");
+      }
+    } catch (error) {
+      toast.error("An error occurred");
+    }
   };
 
-  const deleteSelected = () => {
-    console.log("Permanently deleting files:", selectedFiles);
-    setSelectedFiles([]);
+  const handleDelete = async (id: string, isFolder: boolean) => {
+    const confirm = window.confirm("Permanently delete this item? This cannot be undone.");
+    if (!confirm) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const result = await deleteFilePermanently(user.id, id, isFolder);
+      if (result.success) {
+        toast.success("Deleted permanently");
+        fetchFiles();
+        setSelectedFiles(prev => prev.filter(p => p !== id));
+      } else {
+        toast.error(result.error || "Failed to delete item");
+      }
+    } catch (error) {
+      toast.error("An error occurred");
+    }
   };
 
-  const emptyTrash = () => {
-    console.log("Emptying entire trash");
-    setSelectedFiles([]);
+  const handleBulkRestore = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      for(const id of selectedFiles) {
+          const item = files.find(f => f.id === id);
+          await toggleFileTrash(user.id, id, false, item.isFolder);
+      }
+      toast.success("Selected items restored");
+      fetchFiles();
+      setSelectedFiles([]);
+    } catch (error) {
+      toast.error("An error occurred during bulk restore");
+    }
   };
 
-  const totalSize = trashedFiles.reduce((acc, file) => {
-    const sizeValue = Number.parseFloat(file.size.split(" ")[0]);
-    const unit = file.size.split(" ")[1];
-    const sizeInMB = unit === "GB" ? sizeValue * 1024 : sizeValue;
-    return acc + sizeInMB;
-  }, 0);
+  const handleBulkDelete = async () => {
+    const confirm = window.confirm(`Permanently delete ${selectedFiles.length} items?`);
+    if (!confirm) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      for(const id of selectedFiles) {
+           const item = files.find(f => f.id === id);
+           await deleteFilePermanently(user.id, id, item.isFolder);
+      }
+      toast.success("Selected items deleted");
+      fetchFiles();
+      setSelectedFiles([]);
+    } catch (error) {
+      toast.error("An error occurred during bulk delete");
+    }
+  }
+
+  const totalSizeBytes = files.reduce((acc, f) => acc + parseInt(f.size || "0"), 0);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary opacity-20" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6 p-3">
@@ -185,25 +189,22 @@ export function TrashView() {
           <h2 className="text-xl sm:text-2xl font-bold">Trash</h2>
           <p className="text-sm text-muted-foreground">
             Items in trash are deleted forever after 30 days •{" "}
-            {trashedFiles.length} items • {(totalSize / 1024).toFixed(1)} GB
+            {files.length} items • {formatSize(totalSizeBytes.toString())}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
           {selectedFiles.length > 0 && (
             <>
-              <Button variant="outline" onClick={restoreSelected} size="sm">
+              <Button variant="outline" onClick={handleBulkRestore} size="sm">
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Restore ({selectedFiles.length})
               </Button>
-              <Button variant="destructive" onClick={deleteSelected} size="sm">
+              <Button variant="destructive" onClick={handleBulkDelete} size="sm">
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete Forever
               </Button>
             </>
           )}
-          <Button variant="destructive" onClick={emptyTrash} size="sm">
-            Empty Trash
-          </Button>
         </div>
       </div>
 
@@ -222,7 +223,7 @@ export function TrashView() {
               <TableRow>
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={selectedFiles.length === trashedFiles.length}
+                    checked={selectedFiles.length === files.length && files.length > 0}
                     onCheckedChange={toggleAllFiles}
                   />
                 </TableHead>
@@ -239,9 +240,6 @@ export function TrashView() {
                 <TableHead className="hidden lg:table-cell">
                   Original Location
                 </TableHead>
-                <TableHead className="hidden md:table-cell">
-                  Deleted By
-                </TableHead>
                 <TableHead className="hidden sm:table-cell">
                   <Button
                     variant="ghost"
@@ -257,16 +255,19 @@ export function TrashView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trashedFiles.map((file) => {
-                const Icon = getFileIcon(file.type);
+              {files.map((file) => {
+                const Icon = getFileIcon(file.type, file.isFolder);
                 const isSelected = selectedFiles.includes(file.id);
+                const deletedDate = new Date(file.updatedAt);
+                const expiryDate = addDays(deletedDate, 30);
+                const daysLeft = differenceInDays(expiryDate, new Date());
 
                 return (
                   <TableRow
                     key={file.id}
                     className={`cursor-pointer ${
-                      isSelected ? "bg-blue-50" : ""
-                    } ${file.daysLeft <= 1 ? "bg-red-50" : ""}`}
+                      isSelected ? "bg-blue-50/50" : ""
+                    } ${daysLeft <= 1 ? "bg-red-50/50" : ""}`}
                     onClick={() => toggleFileSelection(file.id)}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -276,9 +277,9 @@ export function TrashView() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                      <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${file.isFolder ? "text-amber-500" : "text-blue-500"}`} />
                     </TableCell>
-                    <TableCell className="font-medium text-muted-foreground">
+                    <TableCell className="font-medium">
                       <div
                         className="truncate max-w-[120px] sm:max-w-[200px] lg:max-w-none text-xs sm:text-sm"
                         title={file.name}
@@ -287,26 +288,22 @@ export function TrashView() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs sm:text-sm hidden lg:table-cell">
-                      <div
-                        className="truncate max-w-[150px]"
-                        title={file.originalLocation}
-                      >
-                        {file.originalLocation}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs sm:text-sm hidden md:table-cell">
-                      {file.deletedBy}
+                      {file.isFolder ? "Folder" : "File"} in Trash
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs sm:text-sm hidden sm:table-cell">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-3 h-3" />
-                        {new Date(file.deletedDate).toLocaleDateString()}
+                        {formatDistanceToNow(deletedDate)} ago
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs sm:text-sm hidden sm:table-cell">
-                      {file.size}
+                      {file.isFolder ? "-" : formatSize(file.size)}
                     </TableCell>
-                    <TableCell>{getDaysLeftBadge(file.daysLeft)}</TableCell>
+                    <TableCell>
+                        <Badge variant={daysLeft <= 1 ? "destructive" : "secondary"} className="text-[10px]">
+                            {daysLeft <= 0 ? "Expired" : `${daysLeft} days left`}
+                        </Badge>
+                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -319,11 +316,11 @@ export function TrashView() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleRestore(file.id, file.isFolder)}>
                             <RotateCcw className="w-4 h-4 mr-2" />
                             Restore
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem onClick={() => handleDelete(file.id, file.isFolder)} className="text-red-600">
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete Forever
                           </DropdownMenuItem>
@@ -338,9 +335,9 @@ export function TrashView() {
         </div>
       </div>
 
-      {trashedFiles.length === 0 && (
-        <div className="text-center py-8 sm:py-12">
-          <Trash2 className="w-8 h-8 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-4" />
+      {files.length === 0 && (
+        <div className="text-center py-8 sm:py-12 border rounded-md">
+          <Trash2 className="w-8 h-8 sm:w-12 sm:h-12 mx-auto text-muted-foreground mb-4 opacity-20" />
           <h3 className="text-base sm:text-lg font-medium mb-2">
             Trash is empty
           </h3>

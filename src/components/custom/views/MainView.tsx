@@ -7,6 +7,8 @@ interface MainViewProps {
   onSidebarToggle?: () => void;
   needsToToggle: boolean;
   children?: React.ReactNode;
+  navigationStack: { id: string; name: string }[];
+  onFolderChange: (id: string | null) => void;
 }
 
 const MainView: React.FC<MainViewProps> = ({
@@ -16,6 +18,8 @@ const MainView: React.FC<MainViewProps> = ({
   onSidebarToggle,
   needsToToggle,
   children,
+  navigationStack,
+  onFolderChange,
 }) => {
   return (
     <div className="flex-1 flex flex-col min-w-0">
@@ -25,6 +29,8 @@ const MainView: React.FC<MainViewProps> = ({
         onViewModeChange={onViewModeChange}
         currentFolder={currentFolder}
         onSidebarToggle={onSidebarToggle}
+        navigationStack={navigationStack}
+        onFolderChange={onFolderChange}
       />
       {children}
     </div>

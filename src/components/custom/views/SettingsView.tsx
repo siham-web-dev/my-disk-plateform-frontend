@@ -378,21 +378,6 @@ const SettingsView = () => {
                     onCheckedChange={(c) => handleUpdate("desktopNotifications", c)}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="sharing-notifications" className="text-sm">
-                      Sharing notifications
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Get notified when files are shared with you
-                    </p>
-                  </div>
-                  <Switch
-                    id="sharing-notifications"
-                    checked={settings.sharingNotifications}
-                    onCheckedChange={(c) => handleUpdate("sharingNotifications", c)}
-                  />
-                </div>
               </CardContent>
             </Card>
           </TabsContent>

@@ -24,6 +24,7 @@ interface SidebarProps {
   isMobile?: boolean;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  refreshKey?: number;
 }
 
 export function Sidebar({
@@ -31,6 +32,7 @@ export function Sidebar({
   isMobile = false,
   isOpen = false,
   onOpenChange,
+  refreshKey,
 }: SidebarProps) {
   const pathname = usePathname();
   const [counts, setCounts] = useState({
@@ -56,7 +58,7 @@ export function Sidebar({
     };
 
     fetchCounts();
-  }, [pathname]); // refetch whenever user navigates
+  }, [pathname, refreshKey]); // refetch whenever user navigates or files change
 
   const folders = [
     { name: "My Drive", icon: FolderOpen, count: counts.myDrive, link: "/my-drive" },

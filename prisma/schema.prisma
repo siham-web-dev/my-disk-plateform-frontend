@@ -78,6 +78,8 @@ model Folder {
   files      File[]
   sharedWith SharedItem[]
 
+  password String? // For secure sharing
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -100,6 +102,8 @@ model File {
   folder   Folder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
   sharedWith SharedItem[]
+
+  password String? // For secure sharing
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

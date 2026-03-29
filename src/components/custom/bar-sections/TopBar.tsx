@@ -28,6 +28,8 @@ interface TopBarProps {
   currentFolder: string;
   onSidebarToggle?: () => void;
   needsToToggle: boolean;
+  navigationStack: { id: string; name: string }[];
+  onFolderChange: (id: string | null) => void;
 }
 
 export function TopBar({
@@ -36,6 +38,8 @@ export function TopBar({
   currentFolder,
   onSidebarToggle,
   needsToToggle,
+  navigationStack,
+  onFolderChange,
 }: TopBarProps) {
   const router = useRouter();
 
@@ -50,12 +54,26 @@ export function TopBar({
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 min-w-0">
           {onSidebarToggle && <SidebarTrigger onClick={onSidebarToggle} />}
-          <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-xl font-semibold hidden sm:block">Drive</h1>
-            <ChevronRight className="w-4 h-4 text-muted-foreground hidden sm:block" />
-            <span className="text-muted-foreground truncate">
-              {currentFolder}
-            </span>
+          <div className="flex items-center gap-1 min-w-0 overflow-x-auto no-scrollbar">
+            <h1 
+                className={`text-xl font-semibold hidden sm:block cursor-pointer hover:text-blue-600 transition-colors ${navigationStack.length === 0 ? "text-foreground" : "text-muted-foreground"}`}
+                onClick={() => onFolderChange(null)}
+            >
+                {currentFolder}
+            </h1>
+            
+            {navigationStack.map((folder, index) => (
+                <div key={folder.id} className="flex items-center gap-1 shrink-0">
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    <span 
+                        className={`text-xl font-semibold cursor-pointer hover:text-blue-600 transition-colors truncate max-w-[150px] sm:max-w-[200px] ${index === navigationStack.length - 1 ? "text-foreground" : "text-muted-foreground"}`}
+                        onClick={() => onFolderChange(folder.id)}
+                        title={folder.name}
+                    >
+                        {folder.name}
+                    </span>
+                </div>
+            ))}
           </div>
         </div>
 

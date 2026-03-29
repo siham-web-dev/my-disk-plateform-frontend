@@ -30,104 +30,62 @@ import {
   Star,
   FolderOpen,
   ArrowUpDown,
+  X,
+  ExternalLink,
+  Lock,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
-const files = [
-  {
-    id: 1,
-    name: "Project Proposal.docx",
-    type: "document",
-    size: "2.4 MB",
-    modified: "2 hours ago",
-    starred: false,
-    owner: "You",
-  },
-  {
-    id: 2,
-    name: "Vacation Photos",
-    type: "folder",
-    size: "24 items",
-    modified: "1 day ago",
-    starred: true,
-    owner: "You",
-  },
-  {
-    id: 3,
-    name: "presentation.pptx",
-    type: "document",
-    size: "5.1 MB",
-    modified: "3 days ago",
-    starred: false,
-    owner: "John Doe",
-  },
-  {
-    id: 4,
-    name: "IMG_2024.jpg",
-    type: "image",
-    size: "3.2 MB",
-    modified: "1 week ago",
-    starred: false,
-    owner: "You",
-  },
-  {
-    id: 5,
-    name: "video-call.mp4",
-    type: "video",
-    size: "45.6 MB",
-    modified: "2 weeks ago",
-    starred: true,
-    owner: "Jane Smith",
-  },
-  {
-    id: 6,
-    name: "music-playlist.mp3",
-    type: "audio",
-    size: "4.8 MB",
-    modified: "1 month ago",
-    starred: false,
-    owner: "You",
-  },
-  {
-    id: 7,
-    name: "backup.zip",
-    type: "archive",
-    size: "128 MB",
-    modified: "2 months ago",
-    starred: false,
-    owner: "You",
-  },
-  {
-    id: 8,
-    name: "Budget 2024.xlsx",
-    type: "document",
-    size: "1.2 MB",
-    modified: "3 months ago",
-    starred: false,
-    owner: "Team",
-  },
-];
-
-function getFileIcon(type: string) {
-  switch (type) {
-    case "folder":
-      return FolderOpen;
-    case "image":
-      return ImageIcon;
-    case "video":
-      return Video;
-    case "audio":
-      return Music;
-    case "archive":
-      return Archive;
-    default:
-      return FileText;
-  }
+interface FileItem {
+  id: string;
+  name: string;
+  type: string;
+  size: string;
+  isStarred: boolean;
+  isTrashed: boolean;
+  updatedAt: Date;
+  isFolder: boolean;
+  url?: string;
+  owner?: string;
+  hasPassword?: boolean;
+  userId: string;
 }
 
-export function FileList() {
-  const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
+interface FileListProps {
+  files: FileItem[];
+  onStar: (id: string, isStarred: boolean, isFolder: boolean) => Promise<void>;
+  onTrash: (id: string, isTrashed: boolean, isFolder: boolean) => Promise<void>;
+  onDelete: (id: string, isFolder: boolean) => Promise<void>;
+  onOpenFolder?: (id: string, name: string) => void;
+  onShare: (id: string, type: "file" | "folder", name: string) => void;
+  onDownload: (file: FileItem) => void;
+}
 
-  const toggleFileSelection = (fileId: number) => {
+function getFileIcon(type: string, isFolder: boolean) {
+  if (isFolder) return FolderOpen;
+  
+  const lowerType = type.toLowerCase();
+  if (lowerType.includes("image")) return ImageIcon;
+  if (lowerType.includes("video")) return Video;
+  if (lowerType.includes("audio")) return Music;
+  if (lowerType.includes("zip") || lowerType.includes("rar") || lowerType.includes("7z")) return Archive;
+  
+  return FileText;
+}
+
+const formatSize = (sizeStr: string) => {
+  const bytes = parseInt(sizeStr);
+  if (isNaN(bytes) || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
+
+export function FileList({ files, onStar, onTrash, onDelete, onOpenFolder, onShare, onDownload }: FileListProps) {
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+
+  const toggleFileSelection = (fileId: string) => {
     setSelectedFiles((prev) =>
       prev.includes(fileId)
         ? prev.filter((id) => id !== fileId)
@@ -141,6 +99,23 @@ export function FileList() {
     );
   };
 
+  const handleDoubleClick = (file: FileItem) => {
+    if (file.isFolder && onOpenFolder) {
+      onOpenFolder(file.id, file.name);
+    } else if (!file.isFolder) {
+      onDownload(file);
+    }
+  };
+
+  if (files.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground border rounded-md">
+        <FolderOpen className="w-12 h-12 mb-4 opacity-20" />
+        <p>No files found in this category</p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-md border overflow-hidden">
       <div className="overflow-x-auto">
@@ -149,26 +124,26 @@ export function FileList() {
             <TableRow>
               <TableHead className="w-12">
                 <Checkbox
-                  checked={selectedFiles.length === files.length}
+                  checked={selectedFiles.length === files.length && files.length > 0}
                   onCheckedChange={toggleAllFiles}
                 />
               </TableHead>
               <TableHead className="w-8"></TableHead>
               <TableHead className="min-w-[200px]">
-                <Button variant="ghost" className="h-auto p-0 font-medium">
+                <Button variant="ghost" className="h-auto p-0 font-medium hover:bg-transparent">
                   Name
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
               <TableHead className="hidden md:table-cell">Owner</TableHead>
               <TableHead className="hidden lg:table-cell">
-                <Button variant="ghost" className="h-auto p-0 font-medium">
+                <Button variant="ghost" className="h-auto p-0 font-medium hover:bg-transparent">
                   Last modified
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
               <TableHead className="hidden sm:table-cell">
-                <Button variant="ghost" className="h-auto p-0 font-medium">
+                <Button variant="ghost" className="h-auto p-0 font-medium hover:bg-transparent">
                   File size
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
@@ -178,14 +153,15 @@ export function FileList() {
           </TableHeader>
           <TableBody>
             {files.map((file) => {
-              const Icon = getFileIcon(file.type);
+              const Icon = getFileIcon(file.type, file.isFolder);
               const isSelected = selectedFiles.includes(file.id);
 
               return (
                 <TableRow
                   key={file.id}
-                  className={`cursor-pointer ${isSelected ? "bg-blue-50" : ""}`}
+                  className={`cursor-pointer ${isSelected ? "bg-blue-50/50" : ""}`}
                   onClick={() => toggleFileSelection(file.id)}
+                  onDoubleClick={() => handleDoubleClick(file)}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -195,8 +171,8 @@ export function FileList() {
                   </TableCell>
                   <TableCell>
                     <div className="relative">
-                      <Icon className="w-5 h-5 text-blue-500" />
-                      {file.starred && (
+                      <Icon className={`w-5 h-5 ${file.isFolder ? "text-amber-500" : "text-blue-500"}`} />
+                      {file.isStarred && (
                         <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 absolute -top-1 -right-1" />
                       )}
                     </div>
@@ -210,13 +186,13 @@ export function FileList() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden md:table-cell">
-                    {file.owner}
+                    {file.owner || "You"}
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden lg:table-cell">
-                    {file.modified}
+                    {formatDistanceToNow(new Date(file.updatedAt))} ago
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden sm:table-cell">
-                    {file.size}
+                    {file.isFolder ? "-" : formatSize(file.size)}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
@@ -226,24 +202,37 @@ export function FileList() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        {file.isFolder && onOpenFolder && (
+                          <DropdownMenuItem onClick={() => onOpenFolder(file.id, file.name)}>
+                            <ExternalLink className="w-4 h-4 mr-2" />
+                            Open
+                          </DropdownMenuItem>
+                        )}
+                        {!file.isFolder && file.url && (
+                          <DropdownMenuItem onClick={() => onDownload(file)}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Download
+                            {file.hasPassword && <Lock className="w-3 h-3 ml-auto text-amber-500" />}
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={() => onShare(file.id, file.isFolder ? "folder" : "file", file.name)}>
                           <Share className="w-4 h-4 mr-2" />
                           Share
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Star className="w-4 h-4 mr-2" />
-                          {file.starred
-                            ? "Remove from starred"
-                            : "Add to starred"}
+                        <DropdownMenuItem onClick={() => onStar(file.id, !file.isStarred, file.isFolder)}>
+                          <Star className={`w-4 h-4 mr-2 ${file.isStarred ? "fill-yellow-500 text-yellow-500" : ""}`} />
+                          {file.isStarred ? "Remove from starred" : "Add to starred"}
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">
+                        <DropdownMenuItem onClick={() => onTrash(file.id, !file.isTrashed, file.isFolder)} className={file.isTrashed ? "" : "text-red-600"}>
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Move to trash
+                          {file.isTrashed ? "Restore" : "Move to trash"}
                         </DropdownMenuItem>
+                        {file.isTrashed && (
+                            <DropdownMenuItem onClick={() => onDelete(file.id, file.isFolder)} className="text-red-600 font-bold">
+                                <X className="w-4 h-4 mr-2" />
+                                Delete Permanently
+                            </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
