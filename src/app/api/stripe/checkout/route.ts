@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       return new NextResponse("User not found", { status: 404 });
     }
 
-    const baseURL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const baseURL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL
 
     const session = await stripe.checkout.sessions.create({
       customer: dbUser.stripeCustomerId || undefined,
