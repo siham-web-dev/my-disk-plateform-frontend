@@ -41,8 +41,9 @@ const VerifyMFAPageContent = () => {
       }
 
       router.push(next);
-    } catch (err: any) {
-      setError(err.message || "An error occurred during verification.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred during verification.";
+      setError(message);
     } finally {
       setIsVerifying(false);
     }

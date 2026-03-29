@@ -17,16 +17,17 @@ export async function POST(req: Request) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (error: any) {
-    console.error(`Webhook Error: ${error.message}`);
-    return new NextResponse(`Webhook Error: ${error.message}`, { status: 400 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Webhook Error: ${message}`);
+    return new NextResponse(`Webhook Error: ${message}`, { status: 400 });
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
 
   if (event.type === "checkout.session.completed") {
     const subscriptionId = session.subscription as string;
-    const subscription = (await stripe.subscriptions.retrieve(subscriptionId)) as any;
+    const subscription = (await stripe.subscriptions.retrieve(subscriptionId)) as Stripe.Subscription;
 
     if (!session?.metadata?.userId) {
       return new NextResponse("User id is required in metadata", { status: 400 });
@@ -50,18 +51,18 @@ export async function POST(req: Request) {
         stripeSubscriptionId: subscription.id,
         stripeCustomerId: subscription.customer as string,
         stripePriceId: subscription.items.data[0].price.id,
-        stripeCurrentPeriodEnd: new Date(
-          subscription.current_period_end * 1000
-        ),
+        stripeCurrentPeriodEnd: subscription.items.data[0].current_period_end
+          ? new Date(subscription.items.data[0].current_period_end * 1000)
+          : null,
         planId: plan?.id,
       },
     });
   }
 
   if (event.type === "invoice.payment_succeeded") {
-    const invoice = event.data.object as any;
-    const subscriptionId = invoice.subscription as string;
-    const subscription = (await stripe.subscriptions.retrieve(subscriptionId)) as any;
+    const invoice = event.data.object as Stripe.Invoice & { subscription: string };
+    const subscriptionId = invoice.subscription;
+    const subscription = (await stripe.subscriptions.retrieve(subscriptionId)) as Stripe.Subscription;
 
     const plan = await prisma.plan.findFirst({
       where: {
@@ -78,9 +79,9 @@ export async function POST(req: Request) {
       },
       data: {
         stripePriceId: subscription.items.data[0].price.id,
-        stripeCurrentPeriodEnd: new Date(
-          subscription.current_period_end * 1000
-        ),
+        stripeCurrentPeriodEnd: subscription.items.data[0].current_period_end
+          ? new Date(subscription.items.data[0].current_period_end * 1000)
+          : null,
         planId: plan?.id,
       },
     });

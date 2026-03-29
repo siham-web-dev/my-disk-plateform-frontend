@@ -31,23 +31,24 @@ import {
   HardDrive,
   Palette,
   Shield,
-  Trash2,
   Loader2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { getUserSettings, updateUserSettings, emptyTrash, deleteUserAccount } from "@/actions/settings";
+import { getUserSettings, updateUserSettings, deleteUserAccount } from "@/actions/settings";
 import { getPricingPlans, getSubscriptionStatus } from "@/actions/plans";
 import { UpgradePlansList, UpgradePlanProps } from "@/components/custom/containers/UpgradePlansList";
-import { getUserProfile, syncUser } from "@/actions/user";
+import { getUserProfile } from "@/actions/user";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { RealtimePostgresInsertPayload, User } from "@supabase/supabase-js";
+import { Settings } from "@prisma/client";
 
 const SettingsView = () => {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [settings, setSettings] = useState<any>(null);
-  const [storage, setStorage] = useState<any>({ storageUsed: 0, storageLimit: 5368709120 });
-  const [user, setUser] = useState<any>(null);
+  const [, _setSaving] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [storage, setStorage] = useState<{ storageUsed: number | bigint; storageLimit: number | bigint }>({ storageUsed: 0, storageLimit: 5368709120 });
+  const [user, setUser] = useState<User | null>(null);
   const [availablePlans, setAvailablePlans] = useState<UpgradePlanProps[]>([]);
   const [currentPlanName, setCurrentPlanName] = useState("Free");
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
@@ -64,7 +65,12 @@ const SettingsView = () => {
       const data = await getUserSettings(user.id);
       if (data) {
         setSettings(data.settings);
-        setStorage(data.storage);
+        if (data.storage) {
+          setStorage({
+            storageUsed: data.storage.storageUsed,
+            storageLimit: data.storage.storageLimit
+          });
+        }
       }
 
       const dbUser = await getUserProfile(user.id);
@@ -96,13 +102,69 @@ const SettingsView = () => {
     init();
   }, []);
 
-  const handleUpdate = async (key: string, value: any) => {
-    if (!user) return;
+  useEffect(() => {
+    if (!user || !settings?.desktopNotifications) return;
+
+    const channel = supabase
+      .channel("shared_items_feed")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "SharedItem",
+          filter: `sharedWithId=eq.${user.id}`,
+        },
+        async (payload: RealtimePostgresInsertPayload<{ fileId?: string; folderId?: string }>) => {
+          // Fetch the file/folder name for a better notification
+          const { data: item } = await supabase
+            .from(payload.new.fileId ? "File" : "Folder")
+            .select("name")
+            .eq("id", payload.new.fileId || payload.new.folderId)
+            .single();
+
+          const message = `Someone shared ${item?.name || "an item"} with you!`;
+
+          if (settings.desktopNotifications && "Notification" in window && Notification.permission === "granted") {
+            new Notification("New Shared Item", {
+              body: message,
+              icon: "/favicon.ico", // Or a dynamic icon
+            });
+          }
+
+          toast(message, {
+            icon: "📂",
+            duration: 5000,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, settings?.desktopNotifications]);
+
+  const handleUpdate = async (key: string, value: string | boolean) => {
+    if (!user || !settings) return;
+
+    if (key === "desktopNotifications" && value === true) {
+      if ("Notification" in window) {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          toast.error("Permission for desktop notifications denied");
+          return;
+        }
+      } else {
+        toast.error("Desktop notifications are not supported in this browser");
+        return;
+      }
+    }
 
     // Optimistic update
     const previousSettings = { ...settings };
-    setSettings((prev: any) => ({ ...prev, [key]: value }));
-    setSaving(key);
+    setSettings((prev) => prev ? ({ ...prev, [key]: value } as Settings) : null);
+    _setSaving(key);
 
     const result = await updateUserSettings(user.id, { [key]: value });
 
@@ -112,10 +174,21 @@ const SettingsView = () => {
     } else {
       toast.success("Settings updated");
     }
-    setSaving(null);
+    _setSaving(null);
   };
 
-  const handleEmptyTrash = async () => {
+  const testNotification = () => {
+    const message = "This is a test notification from MyDisk!";
+    if (settings?.desktopNotifications && "Notification" in window && Notification.permission === "granted") {
+      new Notification("Test Notification", {
+        body: message,
+        icon: "/favicon.ico",
+      });
+    }
+    toast.success(message);
+  };
+
+  /* const handleEmptyTrash = async () => {
     if (!user) return;
     const confirm = window.confirm("Are you sure you want to permanently delete all files in trash?");
     if (!confirm) return;
@@ -126,12 +199,12 @@ const SettingsView = () => {
       // Update local storage stats
       setStorage((prev: any) => ({
         ...prev,
-        storageUsed: prev.storageUsed - (result.sizeReleased || 0)
+        storageUsed: Number(prev.storageUsed) - (result.sizeReleased || 0)
       }));
     } else {
       toast.error("Failed to empty trash");
     }
-  };
+  }; */
 
   const handleDeleteAccount = async () => {
     if (!user) return;
@@ -183,12 +256,12 @@ const SettingsView = () => {
             <TabsTrigger value="storage" className="text-xs sm:text-sm">
               Storage
             </TabsTrigger>
-            <TabsTrigger
+            {/*   <TabsTrigger
               value="notifications"
               className="text-xs sm:text-sm hidden sm:block"
             >
               Notifications
-            </TabsTrigger>
+            </TabsTrigger> */}
           </TabsList>
 
           <TabsContent value="general" className="space-y-4 sm:space-y-6">
@@ -208,7 +281,7 @@ const SettingsView = () => {
                     Theme
                   </Label>
                   <Select
-                    value={settings.theme}
+                    value={settings?.theme || "LIGHT"}
                     onValueChange={(v) => handleUpdate("theme", v)}
                   >
                     <SelectTrigger className="w-full">
@@ -226,7 +299,7 @@ const SettingsView = () => {
                     Language
                   </Label>
                   <Select
-                    value={settings.language}
+                    value={settings?.language || "en"}
                     onValueChange={(v) => handleUpdate("language", v)}
                   >
                     <SelectTrigger className="w-full" >
@@ -244,7 +317,7 @@ const SettingsView = () => {
                     Timezone
                   </Label>
                   <Select
-                    value={settings.timezone}
+                    value={settings?.timezone || "UTC"}
                     onValueChange={(v) => handleUpdate("timezone", v)}
                   >
                     <SelectTrigger className="w-full">
@@ -307,7 +380,7 @@ const SettingsView = () => {
               </CardContent>
             </Card>
 
-            <Card>
+            {/*    <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -333,7 +406,7 @@ const SettingsView = () => {
                   </Label>
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-4 sm:space-y-6">
@@ -359,7 +432,7 @@ const SettingsView = () => {
                   </div>
                   <Switch
                     id="email-notifications"
-                    checked={settings.emailNotifications}
+                    checked={settings?.emailNotifications || false}
                     onCheckedChange={(c) => handleUpdate("emailNotifications", c)}
                   />
                 </div>
@@ -374,9 +447,17 @@ const SettingsView = () => {
                   </div>
                   <Switch
                     id="desktop-notifications"
-                    checked={settings.desktopNotifications}
+                    checked={settings?.desktopNotifications || false}
                     onCheckedChange={(c) => handleUpdate("desktopNotifications", c)}
                   />
+                </div>
+                <div className="pt-4 border-t flex flex-col gap-2">
+                  <Button variant="outline" size="sm" onClick={testNotification}>
+                    Send Test Notification
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    Note: Desktop notifications require browser permission and Realtime must be enabled in the database.
+                  </p>
                 </div>
               </CardContent>
             </Card>

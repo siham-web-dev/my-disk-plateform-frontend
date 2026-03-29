@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 
 export async function getUserProfile(userId: string) {
@@ -31,7 +32,7 @@ export async function getUserActivities(userId: string) {
   }
 }
 
-export async function logActivity(userId: string, data: { type: string; description: string; metadata?: any }) {
+export async function logActivity(userId: string, data: { type: string; description: string; metadata?: Prisma.InputJsonValue }) {
   try {
     const activity = await prisma.activity.create({
       data: {

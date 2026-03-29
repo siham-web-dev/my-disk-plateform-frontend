@@ -87,8 +87,9 @@ const SignIn = () => {
 
       setSuccess("MFA verified! Redirecting...");
       router.push("/account");
-    } catch (err: any) {
-      setError(err.message || "Failed to verify MFA code.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to verify MFA code.";
+      setError(message);
     } finally {
       setIsVerifyingMFA(false);
     }

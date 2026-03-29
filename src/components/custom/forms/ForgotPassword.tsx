@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
-import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ const ForgotPassword = () => {
           </div>
           <h3 className="text-xl font-semibold">Check your email</h3>
           <p className="text-sm text-muted-foreground px-4">
-            We've sent a password reset link to <strong>{formik.values.email}</strong>.
+            We&apos;ve sent a password reset link to <strong>{formik.values.email}</strong>.
             Please check your inbox.
           </p>
           <Button

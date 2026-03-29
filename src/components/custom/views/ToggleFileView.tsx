@@ -11,6 +11,7 @@ import toast from "react-hot-toast";
 import { PasswordPromptModal } from "@/components/custom/modals/PasswordPromptModal";
 
 import { ChevronRight, Folder } from "lucide-react";
+import { FileItem } from "@/types/files";
 
 interface ToggleFileViewProps {
   viewMode: "grid" | "list";
@@ -31,7 +32,7 @@ const ToggleFileView = ({
   navigationStack,
   onShare
 }: ToggleFileViewProps) => {
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -47,7 +48,7 @@ const ToggleFileView = ({
       if (!user) return;
 
       const data = await getFilesByCategory(user.id, currentFolder, currentFolderId);
-      setFiles(data);
+      setFiles(data as FileItem[]);
     } catch (error) {
       console.error("Error fetching files:", error);
       toast.error("Failed to load files");
@@ -70,7 +71,7 @@ const ToggleFileView = ({
     }
   };
 
-  const checkPasswordGate = (item: any, action: () => void) => {
+  const checkPasswordGate = (item: FileItem, action: () => void) => {
     // If user is owner, skip gate
     if (item.userId === currentUserId) {
       action();
@@ -107,7 +108,7 @@ const ToggleFileView = ({
         } else {
           toast.error(result.error || "Failed to move to trash");
         }
-      } catch (error) {
+      } catch {
         toast.error("An error occurred");
       }
     });
@@ -132,7 +133,7 @@ const ToggleFileView = ({
         } else {
           toast.error(result.error || "Failed to delete item");
         }
-      } catch (error) {
+      } catch {
         toast.error("An error occurred");
       }
     };
@@ -140,7 +141,7 @@ const ToggleFileView = ({
     checkPasswordGate(item, performDelete);
   };
 
-  const handleDownload = (file: any) => {
+  const handleDownload = (file: FileItem) => {
     checkPasswordGate(file, () => {
       if (file.url) {
         window.open(file.url, "_blank");
@@ -148,7 +149,7 @@ const ToggleFileView = ({
     });
   };
 
-  const handleOpenFolder = (id: string, name: string) => {
+  const handleOpenFolder = (id: string) => {
     onFolderChange(id);
   };
 

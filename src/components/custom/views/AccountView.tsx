@@ -23,11 +23,12 @@ import {
 } from "@/components/ui/dialog";
 import { getPricingPlans, getSubscriptionStatus } from "@/actions/plans";
 import { UpgradePlansList, UpgradePlanProps } from "../containers/UpgradePlansList";
-import { Camera, Crown, Edit, Loader2, LogOut, ShieldCheck, User as UserIcon, RefreshCw, KeyRound, MonitorSmartphone } from "lucide-react";
+import { Camera, Crown, Edit, Loader2, LogOut, ShieldCheck, User as UserIcon, RefreshCw, MonitorSmartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getUserProfile, updateUserProfile, syncUser, getUserActivities, logActivity } from "@/actions/user";
-import { useRouter } from "next/navigation";
+import { Activity } from "@prisma/client";
+// import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { QRCodeSVG } from "qrcode.react";
 import { formatDistanceToNow } from "date-fns";
@@ -61,7 +62,7 @@ const AccountView = () => {
   });
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [activities, setActivities] = useState<any[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [mfaStatus, setMfaStatus] = useState({
     enabled: false,
     enrolling: false,
@@ -77,7 +78,7 @@ const AccountView = () => {
     currentPeriodEnd: Date | null;
   }>({ status: "none", cancelAtPeriodEnd: false, currentPeriodEnd: null });
 
-  const router = useRouter();
+  // const router = useRouter(); // Unused
 
   const fetchActivities = async (userId: string) => {
     const data = await getUserActivities(userId);
@@ -85,7 +86,7 @@ const AccountView = () => {
   };
 
   const checkMFA = async () => {
-    const { data, error } = await supabase.auth.mfa.listFactors();
+    const { data } = await supabase.auth.mfa.listFactors();
     if (data?.all?.length ?? 0 > 0) {
       const activeFactors = data?.all?.filter(f => f.status === 'verified') || [];
       setMfaStatus(prev => ({ ...prev, enabled: activeFactors.length > 0 }));
@@ -234,9 +235,10 @@ const AccountView = () => {
 
       setProfile((prev) => ({ ...prev, image: publicUrl }));
       toast.success("Profile picture updated!");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to upload image";
       console.error("Error uploading image:", error);
-      toast.error(error.message || "Failed to upload image");
+      toast.error(message);
     } finally {
       setIsUploadingImage(false);
     }
@@ -258,15 +260,16 @@ const AccountView = () => {
         qrCode: data.totp.uri,
         factorId: data.id
       }));
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "An error occurred";
+      toast.error(message);
       setMfaStatus(prev => ({ ...prev, enrolling: false }));
     }
   };
 
   const handleMFAVerify = async () => {
     try {
-      const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
         factorId: mfaStatus.factorId,
         code: mfaCode
       });
@@ -285,8 +288,9 @@ const AccountView = () => {
         type: "SECURITY",
         description: "Two-Factor Authentication enabled"
       });
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "An error occurred";
+      toast.error(message);
     }
   };
 
@@ -300,8 +304,9 @@ const AccountView = () => {
         type: "SECURITY",
         description: "All other sessions revoked"
       });
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "An error occurred";
+      toast.error(message);
     }
   };
 

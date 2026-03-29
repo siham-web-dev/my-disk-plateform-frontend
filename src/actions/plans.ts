@@ -27,13 +27,19 @@ export async function getSubscriptionStatus(userId: string) {
       return { status: "none", cancelAtPeriodEnd: false, currentPeriodEnd: null };
     }
 
-    const subscription = await stripe.subscriptions.retrieve(user.stripeSubscriptionId) as any;
+    const subscription = await stripe.subscriptions.retrieve(user.stripeSubscriptionId) as Stripe.Subscription;
+
+    if (subscription.status === "canceled") {
+       return { status: "canceled", cancelAtPeriodEnd: false, currentPeriodEnd: null };
+    }
+
+    const currentPeriodEnd = subscription.items.data[0]?.current_period_end;
 
     return {
-      status: subscription.status as string,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end as boolean,
-      currentPeriodEnd: subscription.current_period_end
-        ? new Date(subscription.current_period_end * 1000)
+      status: subscription.status,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      currentPeriodEnd: currentPeriodEnd
+        ? new Date(currentPeriodEnd * 1000)
         : null,
     };
   } catch (error) {

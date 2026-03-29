@@ -35,21 +35,7 @@ import {
   Lock,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-
-interface FileItem {
-  id: string;
-  name: string;
-  type: string;
-  size: string;
-  isStarred: boolean;
-  isTrashed: boolean;
-  updatedAt: Date;
-  isFolder: boolean;
-  url?: string;
-  owner?: string;
-  hasPassword?: boolean;
-  userId: string;
-}
+import { FileItem } from "@/types/files";
 
 interface FileListProps {
   files: FileItem[];
@@ -153,7 +139,7 @@ export function FileList({ files, onStar, onTrash, onDelete, onOpenFolder, onSha
           </TableHeader>
           <TableBody>
             {files.map((file) => {
-              const Icon = getFileIcon(file.type, file.isFolder);
+              const Icon = getFileIcon(file.type || "", file.isFolder);
               const isSelected = selectedFiles.includes(file.id);
 
               return (
@@ -189,10 +175,10 @@ export function FileList({ files, onStar, onTrash, onDelete, onOpenFolder, onSha
                     {file.owner || "You"}
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden lg:table-cell">
-                    {formatDistanceToNow(new Date(file.updatedAt))} ago
+                    {file.updatedAt ? `${formatDistanceToNow(new Date(file.updatedAt))} ago` : ""}
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden sm:table-cell">
-                    {file.isFolder ? "-" : formatSize(file.size)}
+                    {file.isFolder ? "-" : formatSize(file.size || "0")}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>

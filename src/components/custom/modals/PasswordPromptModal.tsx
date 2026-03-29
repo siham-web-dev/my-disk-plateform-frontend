@@ -54,7 +54,7 @@ export function PasswordPromptModal({
       } else {
         setError(result.error || "Incorrect password");
       }
-    } catch (err) {
+    } catch {
       setError("An error occurred during verification");
     } finally {
       setIsLoading(false);
@@ -70,7 +70,7 @@ export function PasswordPromptModal({
           </div>
           <DialogTitle className="text-center">Password Protected</DialogTitle>
           <DialogDescription className="text-center">
-            "{itemName}" is protected. Please enter the password to continue.
+            &quot;{itemName}&quot; is protected. Please enter the password to continue.
           </DialogDescription>
         </DialogHeader>
 

@@ -45,14 +45,24 @@ export function ShareModal({
   const [password, setPassword] = useState("");
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [userPlan, setUserPlan] = useState<any>(null);
+  const [userPlan, setUserPlan] = useState<{
+    name: string;
+    canShare: boolean;
+    hasSecurity: boolean;
+  } | null>(null);
 
   useEffect(() => {
     async function fetchUserPlan() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const profile = await getUserProfile(user.id);
-        setUserPlan(profile?.plan);
+        if (profile?.plan) {
+            setUserPlan({
+                name: profile.plan.name,
+                canShare: profile.plan.canShare,
+                hasSecurity: profile.plan.hasSecurity,
+            });
+        }
       }
     }
     if (isOpen) {
@@ -76,7 +86,7 @@ export function ShareModal({
         itemId,
         itemType,
         recipientEmail: email,
-        permission: permission as any,
+        permission: permission as "VIEW" | "EDIT" | "DELETE",
         password: isPasswordProtected ? password : undefined,
       });
 
@@ -99,8 +109,10 @@ export function ShareModal({
     }
   };
 
-  const isPro = userPlan?.name?.toLowerCase().includes("pro");
-  const isEnterprise = userPlan?.name?.toLowerCase().includes("entreprise");
+  // We'll keep these commented out if they might be needed later, or just remove them.
+  // The linter says they are unused.
+  // const isPro = userPlan?.name?.toLowerCase().includes("pro");
+  // const isEnterprise = userPlan?.name?.toLowerCase().includes("entreprise");
   const canShare = userPlan?.canShare || false;
   const hasSecurity = userPlan?.hasSecurity || false;
 
@@ -109,7 +121,7 @@ export function ShareModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Share "{itemName}"
+            Share &quot;{itemName}&quot;
             {!canShare && (
                 <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-normal">
                     Free Restricted

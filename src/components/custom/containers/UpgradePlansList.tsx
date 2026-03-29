@@ -58,7 +58,7 @@ export const UpgradePlansList: React.FC<UpgradePlansListProps> = ({ plans, curre
         toast.error("Checkout link missing");
         setLoadingPriceId(null);
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to proceed to checkout");
       setLoadingPriceId(null);
     }

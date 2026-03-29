@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { useRouter as useNextRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/custom/bar-sections/SideBar";
 import { UploadModal } from "@/components/custom/modals/UploadModal";
 import MainView from "../views/MainView";
@@ -20,7 +19,7 @@ export default function DriveContainer({
   needsToToggle: boolean;
   folderId?: string;
 }) {
-  const router = useNextRouter();
+  const router = useRouter();
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareData, setShareData] = useState<{id: string, type: "file" | "folder", name: string} | null>(null);

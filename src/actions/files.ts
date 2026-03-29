@@ -1,17 +1,18 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { logActivity } from "./user";
 
 export async function getFilesByCategory(userId: string, category: string, folderId: string | null = null) {
   try {
-    let whereClauseFile: any = { userId, isTrashed: false };
-    let whereClauseFolder: any = { userId, isTrashed: false };
+    let whereClauseFile: Prisma.FileWhereInput = { userId, isTrashed: false };
+    let whereClauseFolder: Prisma.FolderWhereInput = { userId, isTrashed: false };
 
     // Handle Folder Hierarchy
     if (folderId) {
-        whereClauseFile.folderId = folderId;
-        whereClauseFolder.parentId = folderId;
+        whereClauseFile = { ...whereClauseFile, folderId };
+        whereClauseFolder = { ...whereClauseFolder, parentId: folderId };
         
         // If we are looking at Trash category but inside a folder (rare, but possible if navigating trash hierarchy)
         if (category.toLowerCase() === "trash") {
@@ -243,7 +244,7 @@ export async function deleteFilePermanently(userId: string, fileId: string, isFo
     if (isFolder) {
         await prisma.folder.delete({ where: { id: fileId } });
     } else {
-        const file = item as any; // We already fetched it
+        const file = item as { userId: string; size: bigint };
         // Decrement storage used
         await prisma.user.update({
             where: { id: file.userId },

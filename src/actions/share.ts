@@ -50,7 +50,7 @@ export async function shareItem(data: {
     }
 
     // 5. Find Recipient or Create Shadow Account
-    let recipient = await prisma.user.findUnique({
+    const recipient = await prisma.user.findUnique({
       where: { email: data.recipientEmail },
     });
 

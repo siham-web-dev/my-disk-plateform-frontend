@@ -21,26 +21,13 @@ import {
   Trash2,
   Star,
   FolderOpen,
-  RefreshCw,
   X,
   ExternalLink,
   Lock,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-interface FileItem {
-  id: string;
-  name: string;
-  type: string;
-  size: string;
-  isStarred: boolean;
-  isTrashed: boolean;
-  updatedAt: Date;
-  isFolder: boolean;
-  url?: string;
-  hasPassword?: boolean;
-  userId: string;
-}
+import { FileItem } from "@/types/files";
 
 interface FileGridProps {
   files: FileItem[];
@@ -104,7 +91,7 @@ export function FileGrid({ files, onStar, onTrash, onDelete, onOpenFolder, onSha
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4">
       {files.map((file) => {
-        const Icon = getFileIcon(file.type, file.isFolder);
+        const Icon = getFileIcon(file.type || "", file.isFolder);
         const isSelected = selectedFiles.includes(file.id);
 
         return (
@@ -132,10 +119,10 @@ export function FileGrid({ files, onStar, onTrash, onDelete, onOpenFolder, onSha
                     {file.name}
                   </p>
                   {!file.isFolder && (
-                    <p className="text-[10px] text-muted-foreground">{formatSize(file.size)}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatSize(file.size || "0")}</p>
                   )}
                   <p className="text-[10px] text-muted-foreground hidden sm:block">
-                    {formatDistanceToNow(new Date(file.updatedAt))} ago
+                    {file.updatedAt ? `${formatDistanceToNow(new Date(file.updatedAt))} ago` : ""}
                   </p>
                 </div>
                 <DropdownMenu>

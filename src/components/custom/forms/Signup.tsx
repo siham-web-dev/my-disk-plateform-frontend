@@ -86,7 +86,7 @@ const Signup = () => {
           </div>
           <h3 className="text-xl font-semibold">Verify your email</h3>
           <p className="text-sm text-muted-foreground px-4">
-            We've sent a verification link to <strong>{formik.values.email}</strong>. 
+            We&apos;ve sent a verification link to <strong>{formik.values.email}</strong>. 
             Please check your inbox to complete your registration.
           </p>
           <Button 

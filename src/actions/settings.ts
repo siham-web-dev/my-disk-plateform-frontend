@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -33,7 +34,7 @@ export async function getUserSettings(userId: string) {
   }
 }
 
-export async function updateUserSettings(userId: string, data: any) {
+export async function updateUserSettings(userId: string, data: Prisma.SettingsUpdateInput) {
   try {
     const settings = await prisma.settings.update({
       where: { userId },

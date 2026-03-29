@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase-server";
 import { stripe } from "@/lib/stripe";
 import prisma from "@/lib/prisma";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

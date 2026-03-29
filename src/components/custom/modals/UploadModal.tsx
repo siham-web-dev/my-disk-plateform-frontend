@@ -52,7 +52,6 @@ export function UploadModal({ isOpen, onClose, onSuccess, folderId }: UploadModa
     try {
       let completed = 0;
       for (const file of selectedFiles) {
-        const fileExt = file.name.split(".").pop();
         const fileName = `${user.id}/${Math.random().toString(36).substring(7)}-${file.name}`;
         const filePath = `${fileName}`;
 
@@ -92,9 +91,10 @@ export function UploadModal({ isOpen, onClose, onSuccess, folderId }: UploadModa
       setSelectedFiles([]);
       onClose();
       setUploadProgress(0);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to upload files";
       console.error("Upload error:", error);
-      toast.error(error.message || "Failed to upload files");
+      toast.error(message);
     } finally {
       setIsUploading(false);
     }
@@ -117,7 +117,7 @@ export function UploadModal({ isOpen, onClose, onSuccess, folderId }: UploadModa
       } else {
         toast.error("Failed to create folder");
       }
-    } catch (error) {
+    } catch {
       toast.error("Something went wrong");
     }
   };

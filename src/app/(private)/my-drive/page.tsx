@@ -1,11 +1,12 @@
 import DriveContainer from "@/components/custom/containers/DriveContainer";
 
-const page = ({ searchParams }: { searchParams: { folderId?: string } }) => {
+const page = async ({ searchParams }: { searchParams: Promise<{ folderId?: string }> }) => {
+  const { folderId } = await searchParams;
   return (
     <DriveContainer
       needsToToggle={true}
       currentFolder="My Drive"
-      folderId={searchParams.folderId}
+      folderId={folderId}
     ></DriveContainer>
   );
 };

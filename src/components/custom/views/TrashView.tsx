@@ -33,7 +33,6 @@ import {
   AlertTriangle,
   Calendar,
   Loader2,
-  X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getFilesByCategory, toggleFileTrash, deleteFilePermanently } from "@/actions/files";
@@ -59,8 +58,10 @@ const formatSize = (sizeStr: string) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
+import { FileItem } from "@/types/files";
+
 export function TrashView() {
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -70,8 +71,8 @@ export function TrashView() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const data = await getFilesByCategory(user.id, "Trash");
-      setFiles(data);
-    } catch (error) {
+      setFiles(data as FileItem[]);
+    } catch {
       toast.error("Failed to load trash");
     } finally {
       setIsLoading(false);
@@ -109,7 +110,7 @@ export function TrashView() {
       } else {
         toast.error(result.error || "Failed to restore item");
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred");
     }
   };
@@ -130,7 +131,7 @@ export function TrashView() {
       } else {
         toast.error(result.error || "Failed to delete item");
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred");
     }
   };
@@ -142,12 +143,14 @@ export function TrashView() {
 
       for(const id of selectedFiles) {
           const item = files.find(f => f.id === id);
-          await toggleFileTrash(user.id, id, false, item.isFolder);
+          if (item) {
+            await toggleFileTrash(user.id, id, false, item.isFolder);
+          }
       }
       toast.success("Selected items restored");
       fetchFiles();
       setSelectedFiles([]);
-    } catch (error) {
+    } catch {
       toast.error("An error occurred during bulk restore");
     }
   };
@@ -162,12 +165,14 @@ export function TrashView() {
 
       for(const id of selectedFiles) {
            const item = files.find(f => f.id === id);
-           await deleteFilePermanently(user.id, id, item.isFolder);
+           if (item) {
+             await deleteFilePermanently(user.id, id, item.isFolder);
+           }
       }
       toast.success("Selected items deleted");
       fetchFiles();
       setSelectedFiles([]);
-    } catch (error) {
+    } catch {
       toast.error("An error occurred during bulk delete");
     }
   }
@@ -256,9 +261,9 @@ export function TrashView() {
             </TableHeader>
             <TableBody>
               {files.map((file) => {
-                const Icon = getFileIcon(file.type, file.isFolder);
+                const Icon = getFileIcon(file.type || "", file.isFolder);
                 const isSelected = selectedFiles.includes(file.id);
-                const deletedDate = new Date(file.updatedAt);
+                const deletedDate = file.updatedAt ? new Date(file.updatedAt) : new Date();
                 const expiryDate = addDays(deletedDate, 30);
                 const daysLeft = differenceInDays(expiryDate, new Date());
 
@@ -297,7 +302,7 @@ export function TrashView() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs sm:text-sm hidden sm:table-cell">
-                      {file.isFolder ? "-" : formatSize(file.size)}
+                      {file.isFolder ? "-" : formatSize(file.size || "0")}
                     </TableCell>
                     <TableCell>
                         <Badge variant={daysLeft <= 1 ? "destructive" : "secondary"} className="text-[10px]">
